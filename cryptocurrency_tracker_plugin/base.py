@@ -28,6 +28,12 @@ class CryptocurrencyTrackerPlugin(Plugin):
                                                             'change.')
                          .add_argument('base', help='Base currency code')
                          .add_argument('target', nargs='?', help='Target currency code', default='USD'))
+        self.add_handler(CommandHandler('convert', self.on_convert,
+                                        command_description='Convert an amount in one cryptocurrency to another '
+                                                            'currency.')
+                         .add_argument('amount', help='Amount in the base currency')
+                         .add_argument('base', help='Base currency code')
+                         .add_argument('target', nargs='?', help='Target currency code', default='USD'))
 
     def setup_schedules(self, adapter):
         pass
@@ -77,3 +83,28 @@ class CryptocurrencyTrackerPlugin(Plugin):
             log.error(ex)
 
 
+    def on_convert(self, update, amount, base, target):
+        old_amount = float(amount.replace(',', ''))
+        target = target.upper()
+        base = base.upper()
+        message = update.effective_message
+
+        try:
+            data = self.fetch_ticker(base, target)
+            ticker = data['ticker']
+            timestamp = data['timestamp']
+            if data is None or not data['success']:
+                error = data['error']
+                message.reply_text(text=f'❌ Unable to fetch ticker information for {base}-{target}.'
+                                        f'Reason: {error}')
+            date = datetime.fromtimestamp(timestamp)
+
+            price = float(ticker['price'])
+            new_amount = old_amount * price
+
+            message.reply_text(text=f'{old_amount:.9f} *{base}* = {new_amount:.9f} *{target}*\n'
+                                    f'💰 Rate: {price:.9f} {base}/{target} @ {date} UTC\n',
+                               parse_mode='markdown')
+        except Exception as ex:
+            message.reply_text(text=f'❌ Unable to fetch ticker information for {base}-{target}. Reason: {ex}')
+            log.error(ex)
